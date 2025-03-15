@@ -1,125 +1,94 @@
 #include <iostream>
+#include <fstream>
 #include <stack>
 #include <string>
-#include <cctype>
 #include <stdexcept>
+#include <sstream>
+#include <cctype>
 
-class InfixToPostfixConverter {
+class PostFixEvaluator {
 private:
-    std::string infix;  // stores infix expression
-    std::string postfix;  // stores postfix expression
+    std::string postfix; // To hold the postfix expression
+    double result; // To hold the result of evaluation
+
+    // Helper function to perform arithmetic operations
+    double applyOperation(double operand1, double operand2, char op) {
+        switch (op) {
+            case '+': return operand1 + operand2;
+            case '-': return operand1 - operand2;
+            case '*': return operand1 * operand2;
+            case '/': 
+                if (operand2 == 0) throw std::invalid_argument("Division by zero");
+                return operand1 / operand2;
+            default:
+                throw std::invalid_argument("Invalid operator");
+        }
+    }
 
 public:
-    // Constructor with infix string
-    InfixToPostfixConverter(const std::string &infix_expr = "") {
-        infix = infix_expr;
-        postfix = "";
-    }
+    // Constructors
+    PostFixEvaluator() : postfix(""), result(0) {}
+    PostFixEvaluator(std::string postfixExpr) : postfix(postfixExpr), result(0) {}
 
-    // Method to evaluate precedence of operators
-    int precedence(char op) {
-        if(op == '+' || op == '-') {
-            return 1;
-        } else if(op == '*' || op == '/') {
-            return 2;
-        } else {
-            return 0;
-        }
-    }
+    // Method to evaluate postfix expression
+    void evaluate() {
+        std::stack<double> stack;
+        std::istringstream ss(postfix);  // To handle the space-separated tokens
+        std::string token;
 
-    // Method to check if character is an operand
-    bool isOperand(char c) {
-        return std::isalnum(c);
-    }
-
-    // Method to convert infix to postfix
-    void convert() {
-        std::stack<char> s;
-        postfix = "";
-
-        for (size_t i = 0; i < infix.length(); ++i) {
-            char c = infix[i];
-
-            // If operand, add it to the result
-            if (isOperand(c)) {
-                postfix += c;
+        while (ss >> token) {
+            // Skip semicolons or any invalid characters
+            if (token == ";") {
+                continue;
             }
-            // If '(', push it to the stack
-            else if (c == '(') {
-                s.push(c);
+
+            // If the token is a number, push it to the stack
+            if (isdigit(token[0]) || (token[0] == '-' && token.size() > 1 && isdigit(token[1]))) {
+                stack.push(std::stod(token));  // Support negative numbers
             }
-            // If ')', pop until '(' is encountered
-            else if (c == ')') {
-                while (!s.empty() && s.top() != '(') {
-                    postfix += s.top();
-                    s.pop();
-                }
-                if (!s.empty() && s.top() == '(') {
-                    s.pop();  // pop '('
-                }
-            }
-            // If operator, handle precedence
-            else if (c == '+' || c == '-' || c == '*' || c == '/') {
-                while (!s.empty() && precedence(s.top()) >= precedence(c)) {
-                    postfix += s.top();
-                    s.pop();
-                }
-                s.push(c);
-            }
-            // Invalid character handling
+            // If the token is an operator, pop two operands and apply the operation
+            else if (token == "+" || token == "-" || token == "*" || token == "/") {
+                if (stack.size() < 2) throw std::invalid_argument("Insufficient operands");
+
+                double operand2 = stack.top(); stack.pop();
+                double operand1 = stack.top(); stack.pop();
+                double result = applyOperation(operand1, operand2, token[0]);
+                stack.push(result);
+            } 
             else {
-                throw std::invalid_argument("Malformed expression: invalid character.");
+                throw std::invalid_argument("Invalid character in expression");
             }
         }
 
-        // Pop remaining operators from the stack
-        while (!s.empty()) {
-            if (s.top() == '(') {
-                throw std::invalid_argument("Malformed expression: unmatched '('.");
-            }
-            postfix += s.top();
-            s.pop();
-        }
+        if (stack.size() != 1) throw std::invalid_argument("Malformed expression");
+
+        result = stack.top();
     }
 
-    // Setter for infix expression
-    void setInfix(const std::string &infix_expr) {
-        infix = infix_expr;
+    // Getter for result
+    double getResult() {
+        return result;
     }
 
-    // Getter for postfix expression
-    std::string getPostfix() const {
-        return postfix;
-    }
-
-    // Getter for infix expression
-    std::string getInfix() const {
-        return infix;
+    // Setter for postfix expression
+    void setPostfix(std::string postfixExpr) {
+        postfix = postfixExpr;
     }
 };
 
 int main() {
-    try {
-        // Test cases
-        std::string expressions[] = {
-            "A+B", "A+B*C", "(A+B)*C", "A*B+C/D", "(A+B)*(C-D)", 
-            "A+B*C-D/E", "A*(B+C)/D", "(A+B*C)/(D-E)", "A+(B-C)*D", 
-            "A+B*(C-D)/E"
-        };
-
-        for (const std::string &expr : expressions) {
-            InfixToPostfixConverter converter(expr);
-            converter.convert();
-            std::cout << "Infix: " << expr << " => Postfix: " << converter.getPostfix() << std::endl;
+    // Read test data from "RPNData.txt"
+    std::ifstream file("RPNData.txt");
+    std::string line;
+    while (std::getline(file, line)) {
+        try {
+            std::cout << "\nEvaluating postfix expression: " << line << std::endl;
+            PostFixEvaluator evaluator(line);
+            evaluator.evaluate();
+            std::cout << "Result: " << evaluator.getResult() << std::endl;
+        } catch (const std::exception& e) {
+            std::cout << "Error: " << e.what() << std::endl;
         }
-
-        // Testing malformed expression
-        std::string malformed_expr = "A+B*";
-        InfixToPostfixConverter malformed_converter(malformed_expr);
-        malformed_converter.convert();  // This should throw an exception
-    }
-    catch (const std::invalid_argument &e) {
-        std::cerr << "Error: " << e.what() << std::endl;
     }
 
     return 0;
